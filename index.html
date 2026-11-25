@@ -252,6 +252,78 @@
   const WAIT_SECONDS = 30;   // planner decision wait time
   const STEP_DELAY = 700;    // ms between steps turning green
 
+  // ---- Teams notification (Workflows webhook) ----
+  const TEAMS_WEBHOOK = 'https://defaultb7ace95d83d7472385c7b157572080.9d.environment.api.powerplatform.com:443/powerautomate/automations/direct/cu/18/workflows/a025b6e3e5994808b35687b7456838ad/triggers/manual/paths/invoke?api-version=1&sp=%2Ftriggers%2Fmanual%2Frun&sv=1.0&sig=GfOxroR8b-CtyOj2SxJ4ceunSr6CByh7xeEWBOkOa38';
+
+  // CARD-START
+  function buildTeamsPayload(pageUrl) {
+    const fact = (title, value) => ({ title, value });
+    const section = (text) => ({ type: 'TextBlock', text, weight: 'Bolder', size: 'Medium', spacing: 'Large', separator: true });
+    const card = {
+      $schema: 'http://adaptivecards.io/schemas/adaptive-card.json',
+      type: 'AdaptiveCard',
+      version: '1.4',
+      msteams: { width: 'Full' },
+      body: [
+        { type: 'TextBlock', text: 'CELONIS · INVENTORY MANAGEMENT', size: 'Small', isSubtle: true, weight: 'Bolder' },
+        { type: 'TextBlock', text: 'Material Planning Alert: Excess Stock & Unneeded Incoming PO', size: 'Large', weight: 'Bolder', color: 'Attention', wrap: true, spacing: 'Small' },
+        { type: 'TextBlock', wrap: true, spacing: 'Small',
+          text: 'Hi, a planning review is needed for material **M0120004033** at plant **1000 – Saluggia**. Stock on hand is well above target and an open PO will add further excess.' },
+
+        section('Material'),
+        { type: 'FactSet', facts: [
+          fact('Material', 'M0120004033'),
+          fact('Plant', '1000 – Saluggia'),
+          fact('Material group', 'G9 – Animal Serum'),
+          fact('MRP type / controller', 'X0 / UT4'),
+          fact('ABC/XYZ class', 'BY'),
+          fact('Unit price', '1.57 EUR / M3'),
+        ]},
+
+        section('Inventory position'),
+        { type: 'FactSet', facts: [
+          fact('Inventory on hand', '227,900 M3'),
+          fact('Target stock level', '60,000 M3'),
+          fact('Safety stock', '30,000 M3'),
+          fact('Excess stock (value)', '263K EUR'),
+        ]},
+
+        section('Open purchase order'),
+        { type: 'FactSet', facts: [
+          fact('PO / item', '4500087412 / 10'),
+          fact('Open quantity', '40,000 M3 (62.8K EUR)'),
+          fact('Current delivery date', '15.01.2027'),
+        ]},
+
+        section('Recommendation'),
+        { type: 'Container', style: 'emphasis', bleed: false, items: [
+          { type: 'TextBlock', wrap: true, weight: 'Bolder', text: 'Postpone PO 4500087412 delivery to 01.06.2027' },
+          { type: 'TextBlock', wrap: true, spacing: 'Small', isSubtle: true,
+            text: 'Current stock covers demand through May 2027. Moving the delivery after May avoids adding 62.8K EUR on top of the existing excess.' },
+        ]},
+      ],
+      actions: [
+        { type: 'Action.OpenUrl', title: 'Accept', url: pageUrl },
+        { type: 'Action.OpenUrl', title: 'Custom parameters', url: pageUrl },
+        { type: 'Action.OpenUrl', title: 'Reject', url: pageUrl },
+      ],
+    };
+    return {
+      type: 'message',
+      attachments: [{ contentType: 'application/vnd.microsoft.card.adaptive', contentUrl: null, content: card }],
+    };
+  }
+  // CARD-END
+
+  function sendTeamsNotification() {
+    const pageUrl = location.href.startsWith('http') ? location.href : 'https://www.celonis.com';
+    return fetch(TEAMS_WEBHOOK, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify(buildTeamsPayload(pageUrl)),
+    }).catch(err => console.warn('Teams notification failed', err));
+  }
+
   // ---- Scale the fixed-size canvas to fit the iframe ----
   const stage = document.getElementById('stage');
   function fit() {
@@ -279,6 +351,7 @@
   }
 
   async function run() {
+    sendTeamsNotification();
     state = 'running'; btn.disabled = true;
     setPill('running', 'Running…');
 
@@ -286,6 +359,7 @@
     setNode('n-start1', 'done'); setNode('n-start2', 'done');
     await sleep(STEP_DELAY);
     setNode('n-teams', 'done');
+    setPill('running', 'Teams notification sent to planner');
     await sleep(STEP_DELAY);
 
     // Wait for planner decision
