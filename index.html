@@ -1,31 +1,315 @@
 <!DOCTYPE html>
 <html lang="en">
 <head>
-  <meta charset="UTF-8">
-  <meta name="viewport" content="width=device-width, initial-scale=1.0">
-  <title>Mockup</title>
-  <style>
-    * { box-sizing: border-box; margin: 0; padding: 0; }
-    body {
-      font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif;
-      background: #f6f7f9; color: #1f2937;
-      min-height: 100vh; display: flex; align-items: center; justify-content: center;
-    }
-    .card {
-      background: #fff; border-radius: 12px; padding: 32px 40px;
-      box-shadow: 0 2px 12px rgba(0,0,0,.08); text-align: center; max-width: 480px;
-    }
-    h1 { font-size: 20px; margin-bottom: 8px; }
-    p { font-size: 14px; color: #6b7280; }
-    .ok { display: inline-block; margin-top: 16px; padding: 4px 12px; border-radius: 999px;
-          background: #dcfce7; color: #166534; font-size: 12px; font-weight: 600; }
-  </style>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Material Planning Orchestration</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600&display=swap" rel="stylesheet">
+<style>
+  * { box-sizing: border-box; margin: 0; padding: 0; }
+  html, body { height: 100%; overflow: hidden; }
+  body {
+    font-family: "Inter", -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif;
+    background-color: #f8f9fb;
+    background-image: radial-gradient(#d5d9e0 1.2px, transparent 1.2px);
+    background-size: 29px 29px;
+    color: #1f2433;
+  }
+
+  /* ---------- Toolbar ---------- */
+  .toolbar {
+    position: fixed; top: 16px; right: 20px; z-index: 10;
+    display: flex; align-items: center; gap: 12px;
+  }
+  .status-pill {
+    font-size: 13px; color: #6b7280; background: #fff;
+    border: 1px solid #e5e7eb; border-radius: 999px; padding: 7px 14px;
+    display: none; align-items: center; gap: 8px; box-shadow: 0 1px 2px rgba(0,0,0,.04);
+  }
+  .status-pill.show { display: inline-flex; }
+  .status-pill .dot { width: 8px; height: 8px; border-radius: 50%; background: #9ca3af; }
+  .status-pill.running .dot { background: #2f9e62; }
+  .status-pill.waiting .dot { background: #f29a38; animation: pulse 1.2s infinite; }
+  .status-pill.done .dot { background: #2f9e62; }
+  .run-btn {
+    font: inherit; font-size: 14px; font-weight: 600; color: #fff;
+    background: #1f6feb; border: none; border-radius: 8px; padding: 10px 18px;
+    cursor: pointer; display: inline-flex; align-items: center; gap: 8px;
+    box-shadow: 0 1px 3px rgba(31,111,235,.35); transition: background .15s, opacity .15s;
+  }
+  .run-btn:hover { background: #1a5fd0; }
+  .run-btn:disabled { opacity: .55; cursor: default; }
+  .run-btn svg { width: 16px; height: 16px; }
+
+  /* ---------- Stage ---------- */
+  .viewport { position: absolute; inset: 0; display: flex; justify-content: center; }
+  .stage { position: relative; width: 1480px; height: 1180px; transform-origin: top center; flex: none; }
+  .wires { position: absolute; inset: 0; pointer-events: none; }
+  .wires path { fill: none; stroke: #d7dbe1; stroke-width: 1.5; }
+
+  .label {
+    position: absolute; transform: translateX(-50%);
+    font-size: 12.5px; letter-spacing: .06em; color: #4b5563; white-space: nowrap;
+  }
+
+  /* ---------- Nodes ---------- */
+  .node {
+    position: absolute; width: 373px; background: #fff;
+    border: 1px solid #e6e8ec; border-radius: 6px; overflow: hidden;
+    box-shadow: 0 1px 2px rgba(16,24,40,.03);
+    transition: border-color .35s, box-shadow .35s;
+  }
+  .hdr {
+    height: 48px; display: flex; align-items: center; gap: 10px; padding: 0 20px;
+    background: #f4f5f7; color: #6b7280; font-size: 16px; font-weight: 500;
+    transition: background .35s, color .35s;
+  }
+  .hdr .hicon { width: 18px; height: 18px; flex: none; }
+  .hdr .state { margin-left: auto; width: 20px; height: 20px; display: flex; align-items: center; justify-content: center; }
+  .hdr .state svg { width: 20px; height: 20px; display: none; }
+  .hdr .state .pdot { width: 11px; height: 11px; border-radius: 50%; background: #f29a38; display: none; animation: pulse 1.2s infinite; }
+  .body {
+    display: flex; align-items: center; gap: 14px; padding: 0 22px;
+    font-size: 16px; line-height: 1.45; color: #1f2433;
+  }
+  .icons { display: flex; gap: 4px; flex: none; }
+  .ic-signal {
+    width: 30px; height: 30px; border-radius: 8px; background: #eef0f3;
+    display: flex; align-items: center; justify-content: center; color: #2b3140;
+  }
+  .ic-signal svg { width: 16px; height: 16px; }
+  .ic-action {
+    width: 24px; height: 24px; border-radius: 5px; background: #1e2433;
+    display: flex; align-items: center; justify-content: center;
+  }
+  .ic-action span {
+    width: 14px; height: 14px; border: 1.5px solid #fff; border-radius: 3px;
+    display: flex; align-items: center; justify-content: center;
+  }
+  .ic-action span::after { content: ""; width: 4px; height: 4px; border: 1.2px solid #fff; border-radius: 50%; }
+  .ic-teams {
+    width: 24px; height: 24px; border-radius: 5px; background: #5b5fc7; color: #fff;
+    font-size: 13px; font-weight: 700; display: flex; align-items: center; justify-content: center;
+  }
+
+  /* Done (green) */
+  .node.done { border: 2px solid #5cc489; box-shadow: 0 0 0 3px rgba(92,196,137,.12); }
+  .node.done .hdr { background: #e7f5ec; color: #2c7a4f; }
+  .node.done .state .check { display: block; }
+
+  /* Waiting (orange) */
+  .node.waiting { border: 2px solid #f2a84e; box-shadow: 0 0 0 3px rgba(242,168,78,.14); }
+  .node.waiting .hdr { background: #fff1e3; color: #c4660f; }
+  .node.waiting .state .pdot { display: block; }
+
+
+  @keyframes pulse { 0%,100% { opacity: 1; } 50% { opacity: .35; } }
+</style>
 </head>
 <body>
-  <div class="card">
-    <h1>Mockup placeholder</h1>
-    <p>If you can see this inside Celonis, the iframe is working. Replace this file with the real mockup.</p>
-    <span class="ok">Hosted on GitHub Pages</span>
+
+<div class="toolbar">
+  <div class="status-pill" id="pill"><span class="dot"></span><span id="pillText"></span></div>
+  <button class="run-btn" id="runBtn">
+    <svg viewBox="0 0 24 24" fill="currentColor"><path d="M7 4.5v15l13-7.5z"/></svg>
+    <span id="btnText">Run process</span>
+  </button>
+</div>
+
+<div class="viewport">
+  <div class="stage" id="stage">
+
+    <!-- Connectors -->
+    <svg class="wires" width="1480" height="1180">
+      <path d="M574 303 V327 H775" />
+      <path d="M977 289 V327 H775" />
+      <path d="M775 327 V366" />
+      <path d="M775 508 V548" />
+      <path d="M775 690 V729" />
+      <path d="M373 750 V729 H1178 V750" />
+      <path d="M775 729 V750" />
+      <path d="M373 919 V942 H1178 V896" />
+      <path d="M775 919 V982" />
+    </svg>
+
+    <!-- Labels -->
+    <div class="label" style="left:574px; top:135px;">DEMAND / STOCK SIGNAL</div>
+    <div class="label" style="left:977px; top:135px;">OPEN PO SIGNAL</div>
+    <div class="label" style="left:373px; top:754px;">ACCEPT</div>
+    <div class="label" style="left:775px; top:754px;">CUSTOM PARAMETERS</div>
+    <div class="label" style="left:1178px; top:754px;">REJECT</div>
+
+    <!-- Start 1 -->
+    <div class="node" id="n-start1" style="left:388px; top:161px; height:142px;">
+      <div class="hdr">
+        <svg class="hicon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M12 5v14M5 12l7 7 7-7"/></svg>
+        Start process
+        <span class="state"><svg class="check" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="12" r="9"/><path d="M8 12.5l2.8 2.8L16.5 9"/></svg><span class="pdot"></span></span>
+      </div>
+      <div class="body" style="height:92px;">
+        <div class="icons"><div class="ic-signal"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"><circle cx="12" cy="12" r="2"/><path d="M16.2 7.8a6 6 0 0 1 0 8.4M7.8 16.2a6 6 0 0 1 0-8.4M19.1 4.9a10 10 0 0 1 0 14.2M4.9 19.1a10 10 0 0 1 0-14.2"/></svg></div></div>
+        <div>Demand-Drop-or-Excess-Stock-Detected</div>
+      </div>
+    </div>
+
+    <!-- Start 2 -->
+    <div class="node" id="n-start2" style="left:791px; top:161px; height:128px;">
+      <div class="hdr">
+        <svg class="hicon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M12 5v14M5 12l7 7 7-7"/></svg>
+        Start process
+        <span class="state"><svg class="check" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="12" r="9"/><path d="M8 12.5l2.8 2.8L16.5 9"/></svg><span class="pdot"></span></span>
+      </div>
+      <div class="body" style="height:78px;">
+        <div class="icons"><div class="ic-signal"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"><circle cx="12" cy="12" r="2"/><path d="M16.2 7.8a6 6 0 0 1 0 8.4M7.8 16.2a6 6 0 0 1 0-8.4M19.1 4.9a10 10 0 0 1 0 14.2M4.9 19.1a10 10 0 0 1 0-14.2"/></svg></div></div>
+        <div>Unneeded-Incoming-PO-Detected</div>
+      </div>
+    </div>
+
+    <!-- Teams notification -->
+    <div class="node" id="n-teams" style="left:589px; top:366px; height:142px;">
+      <div class="hdr">
+        <svg class="hicon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><rect x="3" y="3" width="7" height="7" rx="1.5"/><rect x="14" y="14" width="7" height="7" rx="1.5"/><path d="M6.5 10v4.5a2 2 0 0 0 2 2H14"/></svg>
+        Process step
+        <span class="state"><svg class="check" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="12" r="9"/><path d="M8 12.5l2.8 2.8L16.5 9"/></svg><span class="pdot"></span></span>
+      </div>
+      <div class="body" style="height:92px;">
+        <div class="icons"><div class="ic-teams">T</div><div class="ic-action"><span></span></div><div class="ic-action"><span></span></div></div>
+        <div>Send Teams Notification to Material Planner</div>
+      </div>
+    </div>
+
+    <!-- Resume / wait -->
+    <div class="node" id="n-resume" style="left:589px; top:548px; height:142px;">
+      <div class="hdr">
+        <svg class="hicon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M3 12a9 9 0 1 0 3-6.7L3 8"/><path d="M3 3v5h5"/></svg>
+        Resume process
+        <span class="state"><svg class="check" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="12" r="9"/><path d="M8 12.5l2.8 2.8L16.5 9"/></svg><span class="pdot"></span></span>
+      </div>
+      <div class="body" style="height:92px;">
+        <div class="icons"><div class="ic-signal"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"><circle cx="12" cy="12" r="2"/><path d="M16.2 7.8a6 6 0 0 1 0 8.4M7.8 16.2a6 6 0 0 1 0-8.4M19.1 4.9a10 10 0 0 1 0 14.2M4.9 19.1a10 10 0 0 1 0-14.2"/></svg></div></div>
+        <div>Receive-Planner-Decision (Accept / Reject / Custom)</div>
+      </div>
+    </div>
+
+    <!-- Accept -->
+    <div class="node" id="n-accept" style="left:187px; top:779px; height:140px;">
+      <div class="hdr">
+        <svg class="hicon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><rect x="3" y="3" width="7" height="7" rx="1.5"/><rect x="14" y="14" width="7" height="7" rx="1.5"/><path d="M6.5 10v4.5a2 2 0 0 0 2 2H14"/></svg>
+        Process step
+        <span class="state"><svg class="check" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="12" r="9"/><path d="M8 12.5l2.8 2.8L16.5 9"/></svg><span class="pdot"></span></span>
+      </div>
+      <div class="body" style="height:90px;">
+        <div class="icons"><div class="ic-action"><span></span></div><div class="ic-action"><span></span></div></div>
+        <div>Apply Recommended Parameters &amp; Adjust POs</div>
+      </div>
+    </div>
+
+    <!-- Custom -->
+    <div class="node" id="n-custom" style="left:589px; top:779px; height:140px;">
+      <div class="hdr">
+        <svg class="hicon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><rect x="3" y="3" width="7" height="7" rx="1.5"/><rect x="14" y="14" width="7" height="7" rx="1.5"/><path d="M6.5 10v4.5a2 2 0 0 0 2 2H14"/></svg>
+        Process step
+        <span class="state"><svg class="check" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="12" r="9"/><path d="M8 12.5l2.8 2.8L16.5 9"/></svg><span class="pdot"></span></span>
+      </div>
+      <div class="body" style="height:90px;">
+        <div class="icons"><div class="ic-action"><span></span></div><div class="ic-action"><span></span></div></div>
+        <div>Apply Custom Planning Parameters</div>
+      </div>
+    </div>
+
+    <!-- Reject -->
+    <div class="node" id="n-reject" style="left:991px; top:779px; height:117px;">
+      <div class="hdr">
+        <svg class="hicon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><rect x="3" y="3" width="7" height="7" rx="1.5"/><rect x="14" y="14" width="7" height="7" rx="1.5"/><path d="M6.5 10v4.5a2 2 0 0 0 2 2H14"/></svg>
+        Process step
+        <span class="state"><svg class="check" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="12" r="9"/><path d="M8 12.5l2.8 2.8L16.5 9"/></svg><span class="pdot"></span></span>
+      </div>
+      <div class="body" style="height:67px;">
+        <div class="icons"><div class="ic-action"><span></span></div></div>
+        <div>Log Rejection &amp; Close Alert</div>
+      </div>
+    </div>
+
+    <!-- End -->
+    <div class="node" id="n-end" style="left:589px; top:982px; height:140px;">
+      <div class="hdr">
+        <svg class="hicon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="12" r="9"/><path d="M8 12.5l2.8 2.8L16.5 9"/></svg>
+        End process
+        <span class="state"><svg class="check" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="12" r="9"/><path d="M8 12.5l2.8 2.8L16.5 9"/></svg><span class="pdot"></span></span>
+      </div>
+      <div class="body" style="height:90px;">
+        <div class="icons"><div class="ic-signal"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"><circle cx="12" cy="12" r="2"/><path d="M16.2 7.8a6 6 0 0 1 0 8.4M7.8 16.2a6 6 0 0 1 0-8.4M19.1 4.9a10 10 0 0 1 0 14.2M4.9 19.1a10 10 0 0 1 0-14.2"/></svg></div></div>
+        <div>Material-Planning-Review-Completed</div>
+      </div>
+    </div>
+
   </div>
+</div>
+
+<script>
+  // ---- Config ----
+  const WAIT_SECONDS = 30;   // planner decision wait time
+  const STEP_DELAY = 700;    // ms between steps turning green
+
+  // ---- Scale the fixed-size canvas to fit the iframe ----
+  const stage = document.getElementById('stage');
+  function fit() {
+    const s = Math.min(window.innerWidth / 1480, (window.innerHeight - 10) / 1180, 1.2);
+    stage.style.transform = `scale(${s})`;
+  }
+  window.addEventListener('resize', fit); fit();
+
+  // ---- Run logic ----
+  const $ = id => document.getElementById(id);
+  const btn = $('runBtn'), btnText = $('btnText'), pill = $('pill'), pillText = $('pillText');
+  const sleep = ms => new Promise(r => setTimeout(r, ms));
+  let state = 'idle', timer = null;
+
+  function setNode(id, cls) {
+    const n = $(id); n.classList.remove('done', 'waiting'); if (cls) n.classList.add(cls);
+  }
+  function setPill(cls, text) {
+    pill.className = 'status-pill show ' + cls; pillText.textContent = text;
+  }
+  function reset() {
+    document.querySelectorAll('.node').forEach(n => n.classList.remove('done', 'waiting'));
+    pill.className = 'status-pill';
+    btnText.textContent = 'Run process'; state = 'idle';
+  }
+
+  async function run() {
+    state = 'running'; btn.disabled = true;
+    setPill('running', 'Running…');
+
+    await sleep(300);
+    setNode('n-start1', 'done'); setNode('n-start2', 'done');
+    await sleep(STEP_DELAY);
+    setNode('n-teams', 'done');
+    await sleep(STEP_DELAY);
+
+    // Wait for planner decision
+    setNode('n-resume', 'waiting');
+    setPill('waiting', 'Waiting for planner decision');
+    await sleep(WAIT_SECONDS * 1000);
+    setNode('n-resume', 'done');
+    setPill('running', 'Planner decision received');
+    await sleep(STEP_DELAY);
+
+    setNode('n-accept', 'done');
+    setNode('n-custom', 'done');
+    setNode('n-reject', 'done');
+    await sleep(STEP_DELAY);
+    setNode('n-end', 'done');
+
+    setPill('done', 'Process completed');
+    state = 'done'; btn.disabled = false; btnText.textContent = 'Reset';
+  }
+
+  btn.addEventListener('click', () => {
+    if (state === 'idle') run();
+    else if (state === 'done') reset();
+  });
+</script>
 </body>
 </html>
